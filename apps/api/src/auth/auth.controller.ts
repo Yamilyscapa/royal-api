@@ -9,7 +9,7 @@ import { getDatabase } from '../db/connection.js';
 import { users, passwordResetTokens } from '../db/schema.js';
 import { eq, and, gt } from 'drizzle-orm';
 import winstonLogger from '../helpers/logger.js';
-import { formatPhoneForTwilio } from '../helpers/phone.helper.js';
+import { formatPhoneNumber } from '../helpers/phone.helper.js';
 import type { CreateUserRequest, LoginRequest, RefreshTokenRequest, RequestPasswordResetRequest, VerifyResetTokenRequest, ResetPasswordRequest } from './auth.d.js';
 import { sendPasswordResetEmail } from '../helpers/email.helper.js';
 
@@ -110,8 +110,8 @@ export async function signup(c: Context) {
       return c.json(errorResponse(409, 'User with this email already exists'), 409);
     }
 
-    // Format phone number for Twilio compatibility
-    const phoneResult = formatPhoneForTwilio(validatedData.phone);
+    // Format phone number to E.164 format
+    const phoneResult = formatPhoneNumber(validatedData.phone);
     if (!phoneResult.isValid) {
       winstonLogger.warn('Invalid phone number during signup', { 
         phone: validatedData.phone, 

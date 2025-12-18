@@ -15,6 +15,7 @@ import {
 } from './payments.controller.js';
 import type { TimeSlot } from '../schedules/schedules.d.js';
 import { sendAppointmentConfirmation, sendBarberNotification } from '../notifications/notifications.controller.js';
+import { sendPushNotification, generatePaymentNotification } from '../helpers/expo-push.helper.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   // Use a stable, valid API version; or omit to use account default
@@ -22,6 +23,56 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 });
 
 export const paymentsRoute = new Hono();
+
+type UserRecord = typeof users.$inferSelect;
+type PaymentRecord = typeof payments.$inferSelect;
+type AppointmentRecord = typeof appointments.$inferSelect;
+
+async function sendPaymentPushNotificationIfPossible({
+  user,
+  payment,
+  appointmentId
+}: {
+  user?: UserRecord | null;
+  payment: PaymentRecord;
+  appointmentId?: string | null;
+}) {
+  if (
+    !user ||
+    !user.expoPushToken ||
+    !user.pushNotificationsEnabled ||
+    payment.status !== 'completed'
+  ) {
+    return;
+  }
+
+  try {
+    const notification = generatePaymentNotification({
+      paymentId: payment.id,
+      amount: payment.amount,
+      status: payment.status,
+      appointmentId
+    });
+
+    const result = await sendPushNotification(user.expoPushToken, notification);
+
+    if (result.success) {
+      console.log('✅ Payment push notification sent', {
+        paymentId: payment.id,
+        userId: user.id,
+        appointmentId: appointmentId || null
+      });
+    } else {
+      console.error('❌ Failed to send payment push notification', {
+        paymentId: payment.id,
+        userId: user.id,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error sending payment push notification:', error);
+  }
+}
 
 // Payment CRUD routes
 paymentsRoute.post('/', async (c) => {
@@ -447,13 +498,14 @@ paymentsRoute.post('/webhook', async (c) => {
           // Use a transaction to ensure both payment and appointment are created together
           await db.transaction(async (tx) => {
             // Validate user exists
-            let user = null;
+            let userRecord: UserRecord | null = null;
             if (userId) {
-              user = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
-              if (!user || user.length === 0) {
+              const userRows = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+              if (!userRows || userRows.length === 0) {
                 console.error(`❌ User not found: ${userId}`);
                 throw new Error(`User not found: ${userId}`);
               }
+              userRecord = userRows[0]!;
             }
 
             // Validate barber exists
@@ -585,17 +637,17 @@ paymentsRoute.post('/webhook', async (c) => {
                         console.log('✅ Appointment created successfully:', appointment.id);
                         appointmentId = appointment.id;
                         
-                        // Send WhatsApp confirmation message immediately after appointment creation
-                        console.log('📱 Sending WhatsApp confirmation for appointment:', appointment.id);
+                        // Send confirmation notification immediately after appointment creation
+                        console.log('📱 Sending confirmation notification for appointment:', appointment.id);
                         try {
                           const notificationResult = await sendAppointmentConfirmation(appointment.id, tx);
                           if (notificationResult.success) {
-                            console.log('✅ WhatsApp confirmation sent successfully');
+                            console.log('✅ Confirmation notification sent successfully');
                           } else {
-                            console.error('❌ Failed to send WhatsApp confirmation:', notificationResult.error);
+                            console.error('❌ Failed to send confirmation notification:', notificationResult.error);
                           }
                         } catch (notificationError) {
-                          console.error('❌ Error sending WhatsApp confirmation:', notificationError);
+                          console.error('❌ Error sending confirmation notification:', notificationError);
                         }
 
 
@@ -647,6 +699,12 @@ paymentsRoute.post('/webhook', async (c) => {
               throw new Error('Failed to create payment record');
             }
             console.log('✅ Payment created successfully:', payment.id);
+
+            await sendPaymentPushNotificationIfPossible({
+              user: userRecord,
+              payment,
+              appointmentId
+            });
             
             // Send barber notification after payment is created and linked
             if (appointmentId) {
@@ -729,6 +787,17 @@ paymentsRoute.post('/test-webhook', async (c) => {
     
     // Use a transaction to ensure both payment and appointment are created together
     const result = await db.transaction(async (tx) => {
+      let userRecord: UserRecord | null = null;
+      let appointmentRecord: AppointmentRecord | null = null;
+
+      if (userId) {
+        const userRows = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (!userRows || userRows.length === 0) {
+          throw new Error(`User not found: ${userId}`);
+        }
+        userRecord = userRows[0]!;
+      }
+
       // 1. Create payment record - convert amount from cents to MXN
       const amountInCents = amount || 2500;
       const amountInMXN = (amountInCents / 100).toFixed(2);
@@ -758,11 +827,6 @@ paymentsRoute.post('/test-webhook', async (c) => {
         });
         
         // Validate that all required entities exist
-        const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
-        if (!user) {
-          throw new Error(`User not found: ${userId}`);
-        }
-        
         const [barber] = await tx.select().from(users).where(eq(users.id, barberId)).limit(1);
         if (!barber) {
           throw new Error(`Barber not found: ${barberId}`);
@@ -853,6 +917,8 @@ paymentsRoute.post('/test-webhook', async (c) => {
           throw new Error('Failed to create appointment record');
         }
 
+        appointmentRecord = appointment;
+
         // 3. Update payment to link it to the appointment
         await tx.update(payments)
           .set({ appointmentId: appointment.id })
@@ -873,12 +939,21 @@ paymentsRoute.post('/test-webhook', async (c) => {
         } catch (barberNotificationError) {
           console.error('❌ Error sending barber notification:', barberNotificationError);
         }
-        
-        return { payment, appointment };
       } else {
         console.log('No appointment data provided, only payment created');
-        return { payment };
       }
+
+      await sendPaymentPushNotificationIfPossible({
+        user: userRecord,
+        payment,
+        appointmentId: appointmentRecord?.id || null
+      });
+
+      if (appointmentRecord) {
+        return { payment, appointment: appointmentRecord };
+      }
+
+      return { payment };
     });
 
     if (result.appointment) {

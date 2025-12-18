@@ -2,97 +2,11 @@ import { Hono } from 'hono';
 import { sendAppointmentConfirmation, sendAppointmentReminder, checkAndSendReminders, sendBarberNotification } from './notifications.controller.js';
 import { successResponse, errorResponse } from '../helpers/response.helper.js';
 import { sendPushNotification, generateBarberNotificationPushNotification } from '../helpers/expo-push.helper.js';
-import { formatPhoneForTwilio } from '../helpers/phone.helper.js';
 import cronService from '../services/cron.service.js';
 import { getDatabase } from '../db/connection.js';
 import { appointments, users, services } from '../db/schema.js';
 
 const notificationsRoute = new Hono();
-
-// Test WhatsApp connection
-notificationsRoute.get('/test-connection', async (c) => {
-  try {
-    // WhatsApp connection test removed - service deprecated
-    const result = { success: false, error: 'WhatsApp service deprecated' };
-    
-    if (result.success) {
-      return c.json(successResponse(200, {
-        message: 'WhatsApp connection successful',
-        details: 'WhatsApp service deprecated'
-      }));
-    } else {
-      return c.json(errorResponse(500, 'WhatsApp connection failed', result.error), 500);
-    }
-  } catch (error) {
-    return c.json(errorResponse(500, 'Internal server error', error), 500);
-  }
-});
-
-// Test sending a WhatsApp message immediately
-notificationsRoute.post('/test-message', async (c) => {
-  try {
-    const body = await c.req.json();
-    const { phoneNumber, message } = body;
-    
-    // Basic validation
-    if (!phoneNumber || !message) {
-      return c.json(errorResponse(400, 'Missing phoneNumber or message'), 400);
-    }
-    
-    // Format phone number
-    const phoneResult = formatPhoneForTwilio(phoneNumber);
-    if (!phoneResult.isValid) {
-      return c.json(errorResponse(400, phoneResult.error || 'Invalid phone number format'), 400);
-    }
-    
-    // WhatsApp test message removed - service deprecated
-    const result = { success: false, error: 'WhatsApp service deprecated' };
-    
-    if (result.success) {
-      return c.json(successResponse(200, {
-        message: 'Test message sent successfully',
-        messageId: result.messageId,
-        phoneNumber: phoneResult.formatted,
-        originalPhone: phoneNumber
-      }));
-    } else {
-      return c.json(errorResponse(400, 'Failed to send test message', result.error), 400);
-    }
-  } catch (error) {
-    return c.json(errorResponse(500, 'Internal server error', error), 500);
-  }
-});
-
-// Test confirmation message format
-notificationsRoute.post('/test-confirmation-format', async (c) => {
-  try {
-    // Test the confirmation message with sample data
-    const testMessage = `¡Hola Test Customer! 🎉
-
-Tu cita ha sido confirmada exitosamente.
-
-📅 *Detalles de tu cita:*
-• Servicio: Classic Haircut
-• Fecha y Hora: 25 de enero de 2025 a las 10:00 AM
-• Barber: Carlos Rodriguez
-
-📍 *Ubicación:* The Royal Barber
-
-⏰ Te recordaremos 15 minutos antes de tu cita.
-
-¡Gracias por elegirnos! ✂️✨
-
-_The Royal Barber_
-_WhatsApp: +1234567890`;
-
-    return c.json(successResponse(200, {
-      message: 'Confirmation message format test',
-      testMessage: testMessage
-    }));
-  } catch (error) {
-    return c.json(errorResponse(500, 'Internal server error', error), 500);
-  }
-});
 
 // Send confirmation message for a specific appointment
 notificationsRoute.post('/confirm/:appointmentId', async (c) => {
@@ -107,12 +21,12 @@ notificationsRoute.post('/confirm/:appointmentId', async (c) => {
     
     if (result.success) {
       return c.json(successResponse(200, {
-        message: 'Confirmation message sent successfully',
+        message: 'Confirmation notification sent successfully',
         messageId: result.messageId,
         appointmentId
       }));
     } else {
-      return c.json(errorResponse(400, 'Failed to send confirmation message', result.error), 400);
+      return c.json(errorResponse(400, 'Failed to send confirmation notification', result.error), 400);
     }
   } catch (error) {
     return c.json(errorResponse(500, 'Internal server error', error), 500);
@@ -132,12 +46,12 @@ notificationsRoute.post('/remind/:appointmentId', async (c) => {
     
     if (result.success) {
       return c.json(successResponse(200, {
-        message: 'Reminder message sent successfully',
+        message: 'Reminder notification sent successfully',
         messageId: result.messageId,
         appointmentId
       }));
     } else {
-      return c.json(errorResponse(400, 'Failed to send reminder message', result.error), 400);
+      return c.json(errorResponse(400, 'Failed to send reminder notification', result.error), 400);
     }
   } catch (error) {
     return c.json(errorResponse(500, 'Internal server error', error), 500);
@@ -259,112 +173,6 @@ notificationsRoute.post('/barber-test', async (c) => {
   }
 });
 
-// Simple test barber notification with hardcoded data
-notificationsRoute.post('/barber-simple-test', async (c) => {
-  try {
-    // Test the barber notification with a simple message
-    const testMessage = `🎉 *Nueva Cita Reservada*
-
-¡Hola! Se ha reservado una nueva cita.
-
-👤 *Cliente:* Test Customer
-📞 *Teléfono:* +1234567890
-✂️ *Servicio:* Classic Haircut
-📅 *Fecha y Hora:* 25 de enero de 2025 a las 10:00 AM
-💰 *Pago:* $25.00 MXN
-
-¡Prepárate para dar un excelente servicio! ✂️✨
-
-_The Royal Barber_`;
-
-    // Send test message directly
-    // WhatsApp reminder removed - service deprecated
-    const result = { success: false, error: 'WhatsApp service deprecated' };
-    
-    if (result.success) {
-      return c.json(successResponse(200, {
-        message: 'Barber notification test completed successfully',
-        messageId: result.messageId,
-        testMessage: testMessage
-      }));
-    } else {
-      return c.json(errorResponse(400, 'Failed to send barber notification', result.error), 400);
-    }
-  } catch (error) {
-    return c.json(errorResponse(500, 'Internal server error', error), 500);
-  }
-});
-
-// Test barber notification with no payment amount (should use service price)
-notificationsRoute.post('/barber-test-no-payment', async (c) => {
-  try {
-    const db = await getDatabase();
-    
-    // Create test service first
-    const testService = await db.insert(services).values({
-      name: 'Premium Haircut',
-      description: 'Test service without payment',
-      price: '35.00',
-      duration: 45,
-      isActive: true
-    }).returning().catch(() => []); // Ignore if service already exists
-
-    // Create test user (customer)
-    const testUser = await db.insert(users).values({
-      email: 'test2@example.com',
-      password: 'test',
-      firstName: 'Test',
-      lastName: 'Customer2',
-      phone: '+1234567890'
-    }).returning().catch(() => []); // Ignore if user already exists
-
-    // Create test barber
-    const testBarber = await db.insert(users).values({
-      email: 'barber2@example.com',
-      password: 'test',
-      firstName: 'Miguel',
-      lastName: 'Garcia',
-      phone: '+1234567890',
-      role: 'staff'
-    }).returning().catch(() => []); // Ignore if barber already exists
-
-    // Get the created IDs
-    const userId = testUser[0]?.id || '00000000-0000-0000-0000-000000000004';
-    const barberId = testBarber[0]?.id || '00000000-0000-0000-0000-000000000005';
-    const serviceId = testService[0]?.id || '00000000-0000-0000-0000-000000000006';
-
-    // Create a test appointment WITHOUT payment (to test fallback to service price)
-    const testAppointment = await db.insert(appointments).values({
-      userId: userId,
-      barberId: barberId,
-      serviceId: serviceId,
-      appointmentDate: new Date('2025-01-26'),
-      timeSlot: '11:00',
-      status: 'confirmed',
-      notes: 'Test appointment without payment'
-    }).returning();
-
-    if (!testAppointment[0]) {
-      return c.json(errorResponse(500, 'Failed to create test appointment'), 500);
-    }
-
-    // Test the barber notification (should use service price as fallback)
-    const result = await sendBarberNotification(testAppointment[0].id);
-    
-    if (result.success) {
-      return c.json(successResponse(200, {
-        message: 'Barber notification test completed successfully (no payment, using service price)',
-        messageId: result.messageId,
-        appointmentId: testAppointment[0].id
-      }));
-    } else {
-      return c.json(errorResponse(400, 'Failed to send barber notification', result.error), 400);
-    }
-  } catch (error) {
-    return c.json(errorResponse(500, 'Internal server error', error), 500);
-  }
-});
-
 // Test barber push notification with Expo push token
 notificationsRoute.post('/barber-push-test', async (c) => {
   try {
@@ -405,8 +213,6 @@ notificationsRoute.post('/barber-push-test', async (c) => {
 // Health check for notifications system
 notificationsRoute.get('/health', async (c) => {
   try {
-    // WhatsApp connection test removed - service deprecated
-    const connectionTest = { success: false, error: 'WhatsApp service deprecated' };
     const cronStatus = cronService.getStatus();
     
     return c.json(successResponse(200, {
@@ -414,7 +220,6 @@ notificationsRoute.get('/health', async (c) => {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
-      whatsappDeprecated: true,
       cronJob: {
         isRunning: cronStatus.isRunning,
         schedule: cronStatus.schedule,
@@ -456,4 +261,4 @@ notificationsRoute.post('/cron/trigger', async (c) => {
   }
 });
 
-export default notificationsRoute; 
+export default notificationsRoute;

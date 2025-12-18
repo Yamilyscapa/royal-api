@@ -13,20 +13,13 @@ interface EnvironmentConfig {
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   
-  // Twilio Configuration (optional - only needed for SMS)
-  TWILIO_ACCOUNT_SID?: string;
-  TWILIO_AUTH_TOKEN?: string;
-  TWILIO_PHONE_NUMBER?: string;
-  
   // Server Configuration
   NODE_ENV: string;
   PORT: string;
   API_BASE_URL?: string;
   
   // Feature Flags
-  DISABLE_SMS?: string;
   DEBUG_MODE?: string;
-  LOG_SMS_CODES?: string;
   ENABLE_NOTIFICATIONS?: string;
   
   // Resend Configuration (optional - only needed for email)
@@ -47,13 +40,8 @@ const requiredEnvVars: (keyof EnvironmentConfig)[] = [
 
 const optionalEnvVars: (keyof EnvironmentConfig)[] = [
   'API_BASE_URL',
-  'DISABLE_SMS',
   'DEBUG_MODE',
-  'LOG_SMS_CODES',
   'ENABLE_NOTIFICATIONS',
-  'TWILIO_ACCOUNT_SID',
-  'TWILIO_AUTH_TOKEN',
-  'TWILIO_PHONE_NUMBER',
   'RESEND_API_KEY',
   'RESEND_FROM_EMAIL'
 ];
@@ -85,15 +73,13 @@ export function validateEnvironment(): EnvironmentConfig {
     }
   }
   
-  // Validate NODE_ENV [[memory:4052838]]
+  // Validate NODE_ENV
   if (config.NODE_ENV && !['development', 'DEV', 'DEVELOPMENT', 'production'].includes(config.NODE_ENV)) {
     logger.warn(`NODE_ENV is set to '${config.NODE_ENV}'. Expected: 'development', 'DEV', 'DEVELOPMENT', or 'production'`);
   }
   
   // Set default values for optional variables
-  config.DISABLE_SMS = config.DISABLE_SMS || (config.NODE_ENV === 'development' || config.NODE_ENV === 'DEV' ? 'true' : 'false');
   config.DEBUG_MODE = config.DEBUG_MODE || (config.NODE_ENV === 'development' || config.NODE_ENV === 'DEV' ? 'true' : 'false');
-  config.LOG_SMS_CODES = config.LOG_SMS_CODES || (config.NODE_ENV === 'development' || config.NODE_ENV === 'DEV' ? 'true' : 'false');
   config.ENABLE_NOTIFICATIONS = config.ENABLE_NOTIFICATIONS || 'true';
   config.API_BASE_URL = config.API_BASE_URL || `http://localhost:${config.PORT || '3001'}`;
   
@@ -129,7 +115,6 @@ export function validateEnvironment(): EnvironmentConfig {
   logger.info('Environment validation successful', {
     nodeEnv: config.NODE_ENV,
     port: config.PORT,
-    disableSms: config.DISABLE_SMS,
     debugMode: config.DEBUG_MODE,
     enableNotifications: config.ENABLE_NOTIFICATIONS
   });
@@ -160,15 +145,10 @@ export const env = {
   get INTERNAL_API_SECRET() { return getEnvironmentConfig().INTERNAL_API_SECRET; },
   get STRIPE_SECRET_KEY() { return getEnvironmentConfig().STRIPE_SECRET_KEY; },
   get STRIPE_WEBHOOK_SECRET() { return getEnvironmentConfig().STRIPE_WEBHOOK_SECRET; },
-  get TWILIO_ACCOUNT_SID() { return getEnvironmentConfig().TWILIO_ACCOUNT_SID || ''; },
-  get TWILIO_AUTH_TOKEN() { return getEnvironmentConfig().TWILIO_AUTH_TOKEN || ''; },
-  get TWILIO_PHONE_NUMBER() { return getEnvironmentConfig().TWILIO_PHONE_NUMBER || ''; },
   get NODE_ENV() { return getEnvironmentConfig().NODE_ENV; },
   get PORT() { return getEnvironmentConfig().PORT; },
   get API_BASE_URL() { return getEnvironmentConfig().API_BASE_URL; },
-  get DISABLE_SMS() { return getEnvironmentConfig().DISABLE_SMS === 'true'; },
   get DEBUG_MODE() { return getEnvironmentConfig().DEBUG_MODE === 'true'; },
-  get LOG_SMS_CODES() { return getEnvironmentConfig().LOG_SMS_CODES === 'true'; },
   get ENABLE_NOTIFICATIONS() { return getEnvironmentConfig().ENABLE_NOTIFICATIONS === 'true'; },
   
   // Helper methods

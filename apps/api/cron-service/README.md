@@ -69,14 +69,59 @@ The service exposes a lightweight HTTP server:
 
 ## Testing
 
+### Option 1: Test Script (Recommended)
+
+Use the included test script to send a notification directly to your device:
+
+```bash
+cd cron-service
+
+# Test with your Expo push token directly
+bun test-notification.ts --token ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+
+# Test with your user ID (fetches token from database)
+bun test-notification.ts --user-id YOUR_USER_ID
+
+# Trigger the cron job (checks for appointments 14-16 min away)
+bun test-notification.ts --trigger
+```
+
+### Option 2: Manual Trigger via API
+
 To test the logic without waiting for the schedule:
 
-1. Start the service.
-2. Send a POST request to `/trigger`:
+1. **In Production**: Send a POST request to your production cron service:
    ```bash
+   curl -X POST https://your-cron-service.railway.app/trigger
+   ```
+
+2. **Locally**: Start the service and trigger it:
+   ```bash
+   bun dev
+   # In another terminal:
    curl -X POST http://localhost:3001/trigger
    ```
+
 3. Check logs for output.
+
+### Option 3: Create Test Appointment
+
+To test the full flow:
+
+1. Create an appointment scheduled for **15 minutes from now**
+2. Make sure your user has:
+   - A valid Expo push token registered
+   - Push notifications enabled
+3. Trigger the cron job manually or wait for the scheduled run
+4. Check your device for the notification
+
+### Getting Your Expo Push Token
+
+Your Expo push token should be registered when you use the app. To check or get it:
+
+1. **From the app**: The token is automatically registered when you enable push notifications
+2. **From the database**: Query your user record to see the `expo_push_token` field
+3. **From the API**: Use the `/users/push-token` endpoint to register/update your token
 
 ## Logic Details
 

@@ -1,6 +1,6 @@
 import { getDatabase, users } from '../db/connection.js';
 import { eq, and } from 'drizzle-orm';
-import { formatPhoneForTwilio } from '../helpers/phone.helper.js';
+import { formatPhoneNumber } from '../helpers/phone.helper.js';
 import { testPushNotification } from '../helpers/expo-push.helper.js';
 import winstonLogger from '../helpers/logger.js';
 import type { User, UserResponse } from './users.d';
@@ -126,7 +126,7 @@ export async function updateUser(id: string, updateData: Partial<User>): Promise
         // Format phone number if it's being updated
         let formattedUpdateData = { ...updateData };
         if (updateData.phone) {
-            const phoneResult = formatPhoneForTwilio(updateData.phone);
+            const phoneResult = formatPhoneNumber(updateData.phone);
             if (!phoneResult.isValid) {
                 winstonLogger.warn('Invalid phone number during user update', { 
                     userId: id,

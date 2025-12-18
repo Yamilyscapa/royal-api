@@ -236,6 +236,7 @@ export async function sendPushNotificationToMultiple(
  * Generate appointment confirmation push notification data
  */
 export function generateAppointmentConfirmationNotification(appointmentData: {
+  appointmentId: string;
   serviceName: string;
   appointmentDate: string;
   timeSlot: string;
@@ -246,17 +247,18 @@ export function generateAppointmentConfirmationNotification(appointmentData: {
     title: '¡Cita Confirmada! 🎉',
     body: `Tu cita para ${appointmentData.serviceName} está confirmada para ${appointmentData.appointmentDate} con ${appointmentData.barberName}. ¡Te esperamos!`,
     data: {
-      type: 'appointment_confirmation',
-      appointmentId: appointmentData.serviceName, // This should be the actual appointment ID
+      type: 'appointment',
+      appointmentId: appointmentData.appointmentId,
       serviceName: appointmentData.serviceName,
       appointmentDate: appointmentData.appointmentDate,
       timeSlot: appointmentData.timeSlot,
       barberName: appointmentData.barberName,
-      timestamp: Date.now(), // Add timestamp for cache busting
+      url: 'app://history',
+      timestamp: Date.now() // Add timestamp for cache busting
     },
     sound: 'default',
     badge: 1,
-    channelId: 'appointments'
+    channelId: 'default'
   };
 }
 
@@ -264,6 +266,7 @@ export function generateAppointmentConfirmationNotification(appointmentData: {
  * Generate appointment reminder push notification data
  */
 export function generateAppointmentReminderNotification(appointmentData: {
+  appointmentId: string;
   serviceName: string;
   appointmentDate: string;
   timeSlot: string;
@@ -274,16 +277,18 @@ export function generateAppointmentReminderNotification(appointmentData: {
     title: 'Recordatorio de Cita ⏰',
     body: `Tu cita para ${appointmentData.serviceName} es mañana a las ${appointmentData.timeSlot} con ${appointmentData.barberName}. ¡No olvides venir!`,
     data: {
-      type: 'appointment_reminder',
-      appointmentId: appointmentData.serviceName, // This should be the actual appointment ID
+      type: 'appointment',
+      appointmentId: appointmentData.appointmentId,
       serviceName: appointmentData.serviceName,
       appointmentDate: appointmentData.appointmentDate,
       timeSlot: appointmentData.timeSlot,
-      barberName: appointmentData.barberName
+      barberName: appointmentData.barberName,
+      url: 'app://history',
+      timestamp: Date.now()
     },
     sound: 'default',
     badge: 1,
-    channelId: 'appointments'
+    channelId: 'default'
   };
 }
 
@@ -315,7 +320,7 @@ export function generateBarberNotificationPushNotification(appointmentData: {
     },
     sound: 'default',
     badge: 1,
-    channelId: 'barber_notifications'
+    channelId: 'default'
   };
 }
 
@@ -323,6 +328,7 @@ export function generateBarberNotificationPushNotification(appointmentData: {
  * Generate customer notification for rescheduled appointment
  */
 export function generateAppointmentRescheduleConfirmationNotification(appointmentData: {
+  appointmentId: string;
   serviceName: string;
   appointmentDate: string;
   timeSlot: string;
@@ -333,16 +339,18 @@ export function generateAppointmentRescheduleConfirmationNotification(appointmen
     title: '📅 Cita Reprogramada',
     body: `Tu cita para ${appointmentData.serviceName} ha sido reprogramada para ${appointmentData.appointmentDate} con ${appointmentData.barberName}. ¡Te esperamos!`,
     data: {
-      type: 'appointment_rescheduled',
+      type: 'appointment',
+      appointmentId: appointmentData.appointmentId,
       serviceName: appointmentData.serviceName,
       appointmentDate: appointmentData.appointmentDate,
       timeSlot: appointmentData.timeSlot,
       barberName: appointmentData.barberName,
-      timestamp: Date.now(),
+      url: 'app://history',
+      timestamp: Date.now()
     },
     sound: 'default',
     badge: 1,
-    channelId: 'appointments'
+    channelId: 'default'
   };
 }
 
@@ -378,7 +386,39 @@ export function generateBarberRescheduleNotificationPushNotification(appointment
     },
     sound: 'default',
     badge: 1,
-    channelId: 'barber_notifications'
+    channelId: 'default'
+  };
+}
+
+/**
+ * Generate payment notification data
+ */
+export function generatePaymentNotification(paymentData: {
+  paymentId: string;
+  amount: string | number;
+  status: string;
+  appointmentId?: string | null;
+}): PushNotificationData {
+  const amountDisplay =
+    typeof paymentData.amount === 'number'
+      ? paymentData.amount.toFixed(2)
+      : paymentData.amount;
+
+  return {
+    title: '💈 Pago recibido',
+    body: `Registramos tu pago de $${amountDisplay}. Revisa el historial para más detalles.`,
+    data: {
+      type: 'payment',
+      paymentId: paymentData.paymentId,
+      amount: amountDisplay,
+      status: paymentData.status,
+      appointmentId: paymentData.appointmentId,
+      url: 'app://history',
+      timestamp: Date.now()
+    },
+    sound: 'default',
+    badge: 1,
+    channelId: 'default'
   };
 }
 

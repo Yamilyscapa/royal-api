@@ -4,6 +4,25 @@ import winstonLogger from './logger.js';
 // Create a new Expo SDK client
 const expo = new Expo();
 
+/**
+ * Convert 24-hour time format to 12-hour format with AM/PM
+ * @param timeSlot - Time in "HH:MM" or "H:MM" format (e.g., "18:00", "9:30")
+ * @returns Time in 12-hour format (e.g., "6:00 PM", "9:30 AM")
+ */
+function formatTime12Hour(timeSlot: string): string {
+  const [hoursStr, minutes] = timeSlot.split(':');
+  let hours = parseInt(hoursStr, 10);
+  
+  if (isNaN(hours) || !minutes) {
+    return timeSlot; // Return original if invalid
+  }
+  
+  const period = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12; // Convert 0 to 12, and 13-23 to 1-11
+  
+  return `${hours}:${minutes} ${period}`;
+}
+
 export interface PushNotificationResult {
   success: boolean;
   messageId?: string;
@@ -121,6 +140,7 @@ export async function sendPushNotification(
  * Generate appointment reminder push notification data
  */
 export function generateAppointmentReminderNotification(appointmentData: {
+  appointmentId: string;
   serviceName: string;
   appointmentDate: string;
   timeSlot: string;
@@ -129,18 +149,19 @@ export function generateAppointmentReminderNotification(appointmentData: {
 }): PushNotificationData {
   return {
     title: 'Recordatorio de Cita ⏰',
-    body: `Tu cita para ${appointmentData.serviceName} es mañana a las ${appointmentData.timeSlot} con ${appointmentData.barberName}. ¡No olvides venir!`,
+    body: `Tu cita para ${appointmentData.serviceName} es mañana a las ${formatTime12Hour(appointmentData.timeSlot)} con ${appointmentData.barberName}. ¡No olvides venir!`,
     data: {
-      type: 'appointment_reminder',
-      appointmentId: appointmentData.serviceName, // This should be the actual appointment ID
+      type: 'appointment',
+      appointmentId: appointmentData.appointmentId,
       serviceName: appointmentData.serviceName,
       appointmentDate: appointmentData.appointmentDate,
       timeSlot: appointmentData.timeSlot,
-      barberName: appointmentData.barberName
+      barberName: appointmentData.barberName,
+      url: 'app://history',
+      timestamp: Date.now()
     },
     sound: 'default',
     badge: 1,
-    channelId: 'appointments'
+    channelId: 'default'
   };
 }
-

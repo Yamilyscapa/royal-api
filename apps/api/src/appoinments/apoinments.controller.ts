@@ -317,15 +317,15 @@ export async function updateAppointmentStatus(id: string, status: Status) {
       return res;
     }
 
-    // Send WhatsApp confirmation if status is 'confirmed'
+    // Send confirmation notification if status is 'confirmed'
     if (status === 'confirmed') {
       try {
         const notificationResult = await sendAppointmentConfirmation(id);
         if (!notificationResult.success) {
-          console.warn('Failed to send WhatsApp confirmation:', notificationResult.error);
+          console.warn('Failed to send confirmation notification:', notificationResult.error);
         }
       } catch (error) {
-        console.error('Error sending WhatsApp confirmation:', error);
+        console.error('Error sending confirmation notification:', error);
         // Don't fail the appointment update if notification fails
       }
     }

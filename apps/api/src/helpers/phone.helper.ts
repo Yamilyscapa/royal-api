@@ -1,7 +1,7 @@
 import winstonLogger from './logger.js';
 
 /**
- * Phone number formatting utility for Twilio compatibility
+ * Phone number formatting utility
  * Ensures all phone numbers are in E.164 format (+1234567890)
  */
 
@@ -12,11 +12,11 @@ export interface PhoneFormatResult {
 }
 
 /**
- * Normalize phone number to E.164 format for Twilio compatibility
+ * Normalize phone number to E.164 format
  * @param phone - Raw phone number input
  * @returns PhoneFormatResult with validation and formatting
  */
-export function formatPhoneForTwilio(phone: string): PhoneFormatResult {
+export function formatPhoneNumber(phone: string): PhoneFormatResult {
   try {
     if (!phone || typeof phone !== 'string') {
       return {
@@ -53,10 +53,6 @@ export function formatPhoneForTwilio(phone: string): PhoneFormatResult {
     // Add the + back
     const formatted = '+' + cleaned;
     
-    // Additional validation for common country codes
-    const countryCode = cleaned.substring(0, 3);
-    const commonCountryCodes = ['1', '44', '33', '49', '34', '39', '81', '86', '91', '55', '57', '52'];
-    
     if (cleaned.length < 10 || cleaned.length > 15) {
       return {
         isValid: false,
@@ -91,15 +87,21 @@ export function formatPhoneForTwilio(phone: string): PhoneFormatResult {
   }
 }
 
+// Alias for backward compatibility
+export const formatPhoneForTwilio = formatPhoneNumber;
+
 /**
- * Validate if a phone number is in correct E.164 format for Twilio
+ * Validate if a phone number is in correct E.164 format
  * @param phone - Phone number to validate
  * @returns boolean indicating if valid
  */
-export function isValidTwilioPhone(phone: string): boolean {
-  const result = formatPhoneForTwilio(phone);
+export function isValidPhoneNumber(phone: string): boolean {
+  const result = formatPhoneNumber(phone);
   return result.isValid;
 }
+
+// Alias for backward compatibility
+export const isValidTwilioPhone = isValidPhoneNumber;
 
 /**
  * Get formatted phone number or throw error
@@ -108,7 +110,7 @@ export function isValidTwilioPhone(phone: string): boolean {
  * @throws Error if phone number is invalid
  */
 export function getFormattedPhone(phone: string): string {
-  const result = formatPhoneForTwilio(phone);
+  const result = formatPhoneNumber(phone);
   if (!result.isValid) {
     throw new Error(result.error || 'Invalid phone number');
   }
@@ -135,7 +137,7 @@ export function testPhoneFormatting(): void {
   
   console.log('Testing phone number formatting:');
   testCases.forEach(testCase => {
-    const result = formatPhoneForTwilio(testCase);
+    const result = formatPhoneNumber(testCase);
     console.log(`${testCase} -> ${result.formatted} (valid: ${result.isValid})`);
   });
-} 
+}

@@ -21,6 +21,10 @@ let isJobRunning = false;
 const CRON_SCHEDULE = process.env.CRON_SCHEDULE || '*/15 * * * *';
 const TIMEZONE = 'America/Mexico_City';
 
+// Check if schedule uses seconds (6 fields) - node-cron v4 has timezone bugs with seconds
+const scheduleFields = CRON_SCHEDULE.trim().split(/\s+/).length;
+const useSecondsFormat = scheduleFields === 6;
+
 // Function to run the reminder check
 async function runJob(manual = false) {
   if (isJobRunning) {
@@ -59,11 +63,14 @@ async function runJob(manual = false) {
 }
 
 // Setup CRON job
+// Note: node-cron v4 has a bug with timezone + seconds format, so we skip timezone for seconds-based schedules
 const job = cron.schedule(CRON_SCHEDULE, () => {
   runJob(false);
-}, {
+}, useSecondsFormat ? {
+  scheduled: false
+} : {
   timezone: TIMEZONE,
-  scheduled: false // Don't start immediately, wait for explicit start
+  scheduled: false
 } as any);
 
 // Update next run time helper
@@ -114,7 +121,7 @@ app.post('/trigger', async (c) => {
 
 // Start the server
 winstonLogger.info(`Starting CRON service on port ${port}`);
-winstonLogger.info(`Scheduled to run: ${CRON_SCHEDULE} (${TIMEZONE})`);
+winstonLogger.info(`Scheduled to run: ${CRON_SCHEDULE} (${useSecondsFormat ? 'local time - seconds format' : TIMEZONE})`);
 
 serve({
   fetch: app.fetch,

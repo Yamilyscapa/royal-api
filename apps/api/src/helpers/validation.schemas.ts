@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { formatPhoneForTwilio } from './phone.helper.js';
+import { formatPhoneNumber } from './phone.helper.js';
 
 // Base schemas
 export const emailSchema = z.string()
@@ -13,19 +13,19 @@ export const passwordSchema = z.string()
   .max(128, 'Password too long')
   .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one lowercase letter, one uppercase letter, and one number');
 
-// Phone schema with Twilio compatibility
+// Phone schema with E.164 format validation
 export const phoneSchema = z.string()
   .min(1, 'Phone number is required')
   .max(20, 'Phone number too long')
   .transform((val) => {
-    const result = formatPhoneForTwilio(val);
+    const result = formatPhoneNumber(val);
     if (!result.isValid) {
       throw new Error(result.error || 'Invalid phone number format');
     }
     return result.formatted;
   })
   .refine((val) => {
-    const result = formatPhoneForTwilio(val);
+    const result = formatPhoneNumber(val);
     return result.isValid;
   }, {
     message: 'Phone number must be in international format (e.g., +1234567890)'
