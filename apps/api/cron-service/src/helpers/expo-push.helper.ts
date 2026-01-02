@@ -149,7 +149,7 @@ export function generateAppointmentReminderNotification(appointmentData: {
 }): PushNotificationData {
   return {
     title: 'Recordatorio de Cita ⏰',
-    body: `Tu cita para ${appointmentData.serviceName} es mañana a las ${formatTime12Hour(appointmentData.timeSlot)} con ${appointmentData.barberName}. ¡No olvides venir!`,
+    body: `Tu cita para ${appointmentData.serviceName} es hoy a las ${formatTime12Hour(appointmentData.timeSlot)} con ${appointmentData.barberName}. ¡No olvides venir!`,
     data: {
       type: 'appointment',
       appointmentId: appointmentData.appointmentId,

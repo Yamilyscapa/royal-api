@@ -7,6 +7,10 @@ import {
 } from './helpers/expo-push.helper.js';
 import winstonLogger from './helpers/logger.js';
 import { formatAppointmentDateTime } from './helpers/date.helper.js';
+import { fromZonedTime, toZonedTime, format } from 'date-fns-tz';
+
+// Mexico City timezone constant
+const MEXICO_TIMEZONE = 'America/Mexico_City';
 
 /**
  * Convert 24-hour time format to 12-hour format with AM/PM
@@ -29,9 +33,9 @@ function formatTime12Hour(timeSlot: string): string {
 
 /**
  * Calculate time remaining until appointment and format it in Spanish
- * @param appointmentDate - The appointment date
- * @param timeSlot - Time in "HH:MM" format
- * @param now - Current time
+ * @param appointmentDate - The appointment date (UTC from database, represents the date in Mexico)
+ * @param timeSlot - Time in "HH:MM" format (local time in Mexico)
+ * @param now - Current time (UTC)
  * @returns Formatted time remaining (e.g., "15 min", "5 min", "menos de 1 min")
  */
 function getTimeRemaining(appointmentDate: Date, timeSlot: string, now: Date): string {
@@ -39,9 +43,18 @@ function getTimeRemaining(appointmentDate: Date, timeSlot: string, now: Date): s
   const hours = parseInt(timeParts[0], 10);
   const minutes = parseInt(timeParts[1], 10);
   
-  const dateStr = appointmentDate.toISOString().split('T')[0];
+  // IMPORTANT: appointmentDate is stored as UTC midnight representing the date in Mexico
+  // (e.g., 2025-12-17T00:00:00.000Z means December 17 in Mexico, not UTC)
+  // Extract date parts directly from the UTC timestamp (these represent the intended date in Mexico)
+  const dateStr = appointmentDate.toISOString().split('T')[0]; // "2025-12-17"
   const [year, month, day] = dateStr.split('-').map(Number);
-  const appointmentDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  
+  // Create a date string in Mexico timezone format: YYYY-MM-DD HH:mm
+  // We interpret the date parts as being in Mexico timezone
+  const dateTimeString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+  
+  // Convert the Mexico datetime to UTC for comparison
+  const appointmentDateTime = fromZonedTime(dateTimeString, MEXICO_TIMEZONE);
   
   const diffMs = appointmentDateTime.getTime() - now.getTime();
   const diffMinutes = Math.round(diffMs / (1000 * 60));
@@ -66,16 +79,23 @@ export async function checkAndSendReminders(): Promise<{
 }> {
   try {
     const db = await getDatabase();
-    const now = new Date();
+    const now = new Date(); // UTC time
     
-    // Match appointments happening in the next 20 minutes or less
-    const targetTimeStart = new Date(now.getTime()); // Now
-    const targetTimeEnd = new Date(now.getTime() + 20 * 60 * 1000); // 20 minutes from now
+    // Convert now to Mexico timezone for logging and reference
+    const nowInMexico = toZonedTime(now, MEXICO_TIMEZONE);
+    
+    // Match appointments happening soon (within the next 20 minutes)
+    const targetTimeStart = new Date(now.getTime()); // Now (UTC)
+    const targetTimeEnd = new Date(now.getTime() + 20 * 60 * 1000); // 20 minutes from now (UTC)
 
     winstonLogger.info('Checking for appointments in reminder window', {
-      now: now.toISOString(),
-      targetWindowStart: targetTimeStart.toISOString(),
-      targetWindowEnd: targetTimeEnd.toISOString()
+      nowUTC: now.toISOString(),
+      nowMexico: format(nowInMexico, 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: MEXICO_TIMEZONE }),
+      timezone: process.env.TZ || 'UTC (default)',
+      targetWindowStartUTC: targetTimeStart.toISOString(),
+      targetWindowEndUTC: targetTimeEnd.toISOString(),
+      targetWindowStartMexico: format(toZonedTime(targetTimeStart, MEXICO_TIMEZONE), 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: MEXICO_TIMEZONE }),
+      targetWindowEndMexico: format(toZonedTime(targetTimeEnd, MEXICO_TIMEZONE), 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: MEXICO_TIMEZONE })
     });
 
     // Strategy: 
@@ -106,7 +126,7 @@ export async function checkAndSendReminders(): Promise<{
 
     winstonLogger.info(`Found ${potentialAppointments.length} potential appointments in date range`);
     
-    // Filter appointments that are within 20 minutes or less by combining date + time
+    // Filter appointments that are happening soon (within 20 minutes) by combining date + time
     const upcomingAppointments = potentialAppointments.filter(app => {
       // Parse timeSlot "HH:MM" or "H:MM" format
       const timeParts = app.timeSlot.split(':');
@@ -123,23 +143,47 @@ export async function checkAndSendReminders(): Promise<{
         return false;
       }
 
-      // IMPORTANT: appointmentDate is stored as UTC midnight (e.g., 2025-12-17T00:00:00.000Z)
-      // We need to extract the date parts and create a new Date with local time
+      // IMPORTANT: appointmentDate is stored as UTC midnight representing the date in Mexico
+      // (e.g., 2025-12-17T00:00:00.000Z means December 17 in Mexico, not UTC)
+      // timeSlot is in local Mexico time (e.g., "18:00" means 6 PM in Mexico)
+      // We need to:
+      // 1. Extract date parts directly from UTC timestamp (these represent the intended date in Mexico)
+      // 2. Combine with timeSlot to create the full datetime in Mexico
+      // 3. Convert back to UTC for comparison with now (which is in UTC)
+      
+      // Extract date parts directly from UTC timestamp (these represent the intended date in Mexico)
+      // Do NOT convert to Mexico timezone first, as that would shift the date incorrectly
       const dateStr = app.appointmentDate.toISOString().split('T')[0]; // "2025-12-17"
       const [year, month, day] = dateStr.split('-').map(Number);
       
-      // Create appointment datetime in local timezone
-      const appointmentDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+      // Create a date string in Mexico timezone format: YYYY-MM-DD HH:mm:ss
+      // We interpret the date parts as being in Mexico timezone
+      const dateTimeString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+      
+      // Convert the Mexico datetime to UTC for comparison
+      const appointmentDateTime = fromZonedTime(dateTimeString, MEXICO_TIMEZONE);
 
-      // Check if the appointment is in our target window (next 20 minutes or less)
+      // Check if the appointment is in our target window (happening soon - within next 20 minutes)
       const isInWindow = appointmentDateTime >= targetTimeStart && appointmentDateTime <= targetTimeEnd;
       
+      // Calculate time difference in minutes for better debugging
+      const diffMs = appointmentDateTime.getTime() - now.getTime();
+      const diffMinutes = Math.round(diffMs / (1000 * 60));
+      
+      // Convert appointmentDateTime back to Mexico timezone for logging
+      const appointmentDateTimeInMexico = toZonedTime(appointmentDateTime, MEXICO_TIMEZONE);
+      
       winstonLogger.debug(`Appointment ${app.id} check`, {
-        appointmentDateTime: appointmentDateTime.toISOString(),
+        appointmentDateTimeUTC: appointmentDateTime.toISOString(),
+        appointmentDateTimeMexico: format(appointmentDateTimeInMexico, 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: MEXICO_TIMEZONE }),
         timeSlot: app.timeSlot,
-        dateStr,
         isInWindow,
-        nowTime: now.toISOString()
+        nowUTC: now.toISOString(),
+        nowMexico: format(nowInMexico, 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: MEXICO_TIMEZONE }),
+        targetWindowStartUTC: targetTimeStart.toISOString(),
+        targetWindowEndUTC: targetTimeEnd.toISOString(),
+        minutesUntilAppointment: diffMinutes,
+        reason: isInWindow ? 'in window' : diffMinutes < 0 ? 'already passed' : diffMinutes > 20 ? 'too far in future' : 'outside window'
       });
 
       return isInWindow;

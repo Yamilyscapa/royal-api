@@ -12,18 +12,16 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@hono/node-server": "^1.14.4",
+    "date-fns": "^3.6.0",
+    "date-fns-tz": "^3.2.0",
     "dotenv": "^16.6.0",
     "drizzle-orm": "^0.44.2",
     "expo-server-sdk": "^3.7.0",
-    "hono": "^4.7.9",
-    "node-cron": "^4.2.1",
     "postgres": "^3.4.7",
     "winston": "^3.17.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node-cron": "^3.0.11",
     "typescript": "^5"
   },
   "private": true

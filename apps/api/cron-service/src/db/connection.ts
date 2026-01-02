@@ -3,6 +3,7 @@ import postgres from 'postgres';
 import * as schema from './schema.js';
 
 let db: ReturnType<typeof drizzle> | null = null;
+let client: ReturnType<typeof postgres> | null = null;
 
 export async function initializeDatabase() {
     if (db) {
@@ -17,7 +18,7 @@ export async function initializeDatabase() {
 
     try {
         // Create the connection with better timeout handling
-        const client = postgres(connectionString, {
+        client = postgres(connectionString, {
             max: 10, // Maximum number of connections
             idle_timeout: 20, // Close idle connections after 20 seconds
             connect_timeout: 10, // Connection timeout
@@ -47,6 +48,24 @@ export async function getDatabase() {
         await initializeDatabase();
     }
     return db!;
+}
+
+/**
+ * Close all database connections
+ * This should be called before the process exits to ensure proper cleanup
+ */
+export async function closeDatabase(): Promise<void> {
+    if (client) {
+        try {
+            await client.end();
+            client = null;
+            db = null;
+            console.log('✅ Database connections closed successfully');
+        } catch (error) {
+            console.error('❌ Error closing database connections:', error);
+            throw error;
+        }
+    }
 }
 
 export * from './schema.js';

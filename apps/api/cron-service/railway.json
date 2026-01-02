@@ -5,8 +5,9 @@
   },
   "deploy": {
     "startCommand": "bun dist/index.js",
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 100,
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "cron": {
+      "schedule": "*/5 * * * *"
+    }
   }
 }
