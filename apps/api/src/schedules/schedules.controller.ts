@@ -12,6 +12,7 @@ import type {
   DayOfWeek
 } from './schedules.d.js';
 import { successResponse, errorResponse } from '../helpers/response.helper.js';
+import { getCurrentCDMXTimeComponents } from '../helpers/date.helper.js';
 
 // Helper function to get day of week from date
 function getDayOfWeek(date: Date): DayOfWeek {
@@ -164,9 +165,25 @@ export async function getAvailability(barberId: string, date: string) {
       return res;
     }
     
-    // Check if date is in the past
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Check if date is in the past (using Mexico City timezone)
+    const mexicoTimeComponents = getCurrentCDMXTimeComponents();
+    const now = mexicoTimeComponents.date;
+    // Create today's date in Mexico City timezone
+    const mexicoDateString = now.toLocaleString('en-US', { 
+      timeZone: 'America/Mexico_City',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const mexicoDateParts = mexicoDateString.split('/');
+    if (mexicoDateParts.length !== 3) {
+      res.error = 'Error al obtener la fecha actual';
+      return res;
+    }
+    const mexicoMonth = parseInt(mexicoDateParts[0] || '1', 10);
+    const mexicoDay = parseInt(mexicoDateParts[1] || '1', 10);
+    const mexicoYear = parseInt(mexicoDateParts[2] || '2000', 10);
+    const today = new Date(mexicoYear, mexicoMonth - 1, mexicoDay);
     if (targetDate < today) {
       res.error = 'No se pueden consultar horarios para fechas pasadas';
       return res;
@@ -247,12 +264,21 @@ export async function getAvailability(barberId: string, date: string) {
     const scheduleAvailableSlots = (schedule[0]?.availableTimeSlots || []).map(normalizeSlot);
 
     // Calculate available slots (filter out booked ones)
-    const availableSlots = scheduleAvailableSlots.filter(
+    let availableSlots = scheduleAvailableSlots.filter(
       slot => !bookedSlots.includes(slot)
     ) as TimeSlot[];
 
+    // Don't filter past slots in backend - let frontend handle it based on device timezone
+    // This ensures compatibility with frontend's existing filtering logic
+    // Backend only filters out booked slots, frontend will filter past times
+    // Note: Frontend uses > (not >=) and has 30min buffer in AppointmentDatePicker
+    // So backend sends all available slots and frontend filters them
+
     console.log('[getAvailability] Schedule available slots:', scheduleAvailableSlots);
-    console.log('[getAvailability] Final available slots:', availableSlots);
+    console.log('[getAvailability] Final available slots (before frontend filtering):', availableSlots);
+    console.log('[getAvailability] Slots count:', availableSlots.length);
+    console.log('[getAvailability] Slots include 19:00:', availableSlots.includes('19:00'));
+    console.log('[getAvailability] Slots include 20:00:', availableSlots.includes('20:00'));
 
     const availability: ScheduleAvailability = {
       barberId,

@@ -112,9 +112,42 @@ export function isToday(date: Date | string): boolean {
 }
 
 /**
- * Get current time in CDMX timezone
+ * Get current time in CDMX timezone (America/Mexico_City)
  * @returns Current date in CDMX timezone
  */
 export function getCurrentCDMXTime(): Date {
-  return new Date();
+  const now = new Date();
+  // Convert to Mexico City timezone
+  const mexicoTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+  return mexicoTime;
+}
+
+/**
+ * Get current time components in Mexico City timezone
+ * @returns Object with hours, minutes, and total minutes in Mexico City timezone
+ */
+export function getCurrentCDMXTimeComponents(): {
+  hours: number;
+  minutes: number;
+  totalMinutes: number;
+  date: Date;
+} {
+  const now = new Date();
+  // Get time string in Mexico City timezone
+  const mexicoTimeString = now.toLocaleString('en-US', { 
+    timeZone: 'America/Mexico_City',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  
+  const [hours, minutes] = mexicoTimeString.split(':').map(Number);
+  const totalMinutes = hours * 60 + minutes;
+  
+  return {
+    hours,
+    minutes,
+    totalMinutes,
+    date: now
+  };
 } 
