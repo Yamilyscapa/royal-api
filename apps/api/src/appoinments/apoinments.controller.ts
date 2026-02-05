@@ -487,20 +487,34 @@ export async function rescheduleAppointment(id: string, newDate: string, newTime
       return res;
     }
 
-    // Check if appointment is within 30 minutes (prevent rescheduling)
-    const appointmentDateTime = new Date(existingAppointment[0]?.appointmentDate || '');
+    // ===== CHECK 1: Original appointment must not be starting within 30 minutes =====
+    // Properly combine appointmentDate with timeSlot for accurate datetime
+    const originalTimeSlot = existingAppointment[0]?.timeSlot || '00:00';
+    const [origHours, origMinutes] = originalTimeSlot.split(':').map(Number);
+    const originalDateTime = new Date(existingAppointment[0]?.appointmentDate || '');
+    originalDateTime.setHours(origHours, origMinutes, 0, 0);
+
     const currentTime = new Date();
-    const timeDifferenceMs = appointmentDateTime.getTime() - currentTime.getTime();
-    const timeDifferenceMinutes = timeDifferenceMs / (1000 * 60);
-    
-    if (timeDifferenceMinutes <= 30) {
-      console.log('❌ WITHIN 30 MINUTES:', {
+    const origTimeDifferenceMs = originalDateTime.getTime() - currentTime.getTime();
+    const origTimeDifferenceMinutes = origTimeDifferenceMs / (1000 * 60);
+
+    // Block rescheduling if original appointment is starting within 30 minutes
+    // (but allow if appointment already passed - graceful handling)
+    if (origTimeDifferenceMinutes <= 30 && origTimeDifferenceMinutes > 0) {
+      console.log('❌ ORIGINAL APPOINTMENT WITHIN 30 MINUTES:', {
         appointmentId: id,
-        timeDifferenceMinutes
+        originalDateTime: originalDateTime.toISOString(),
+        currentTime: currentTime.toISOString(),
+        timeDifferenceMinutes: origTimeDifferenceMinutes
       });
       res.error = 'No se puede reprogramar una cita 30 minutos antes de la hora programada';
       return res;
     }
+
+    console.log('✅ ORIGINAL APPOINTMENT CHECK PASSED:', {
+      appointmentId: id,
+      originalTimeDifferenceMinutes: origTimeDifferenceMinutes
+    });
 
     // Parse new date
     const targetDate = parseDate(newDate);
@@ -514,6 +528,33 @@ export async function rescheduleAppointment(id: string, newDate: string, newTime
     if (/^\d{1,2}$/.test(newTimeSlot)) {
       normalizedTimeSlot = (`${newTimeSlot.padStart(2, '0')}:00`) as TimeSlot;
     }
+
+    // ===== CHECK 2: New appointment must not be starting within 30 minutes =====
+    // Construct the NEW appointment datetime
+    const [newHours, newMinutes] = normalizedTimeSlot.split(':').map(Number);
+    const newDateTime = new Date(targetDate);
+    newDateTime.setHours(newHours, newMinutes, 0, 0);
+
+    const newTimeDifferenceMs = newDateTime.getTime() - currentTime.getTime();
+    const newTimeDifferenceMinutes = newTimeDifferenceMs / (1000 * 60);
+
+    // Block rescheduling TO a time that's starting within 30 minutes
+    if (newTimeDifferenceMinutes <= 30) {
+      console.log('❌ NEW APPOINTMENT WITHIN 30 MINUTES:', {
+        appointmentId: id,
+        newDateTime: newDateTime.toISOString(),
+        currentTime: currentTime.toISOString(),
+        timeDifferenceMinutes: newTimeDifferenceMinutes
+      });
+      res.error = 'No se puede agendar una cita con menos de 30 minutos de anticipación';
+      return res;
+    }
+
+    console.log('✅ NEW APPOINTMENT CHECK PASSED:', {
+      appointmentId: id,
+      newTimeDifferenceMinutes: newTimeDifferenceMinutes,
+      newDateTime: newDateTime.toISOString()
+    });
 
     // Check if the new time slot is available
     const isAvailable = await isTimeSlotAvailable(
